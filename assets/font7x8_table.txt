@@ -6,3 +6,11 @@
 	H	I	J	K	L	M	N	O
 80	P	Q	R	S	T	U	V	W
 	X	Y	Z	[	\	]	^	_
+
+Specials:
+	&	heart
+	[	left arrow
+	\	down arrow
+	]	right arrow
+	^	up arrow
+	_	invalid character
