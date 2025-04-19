@@ -10,7 +10,7 @@
 Specials:
 	&	heart
 	[	left arrow
-	\	down arrow
 	]	right arrow
 	^	up arrow
-	_	invalid character
+	_	down arrow
+	\	invalid character (code 60 = ASCII 92)
