@@ -13,6 +13,7 @@ lines = [
     "  score:42",
     "+ - * / =",
     ".!?.:;\"()",
+    "#66 $A % @",
     "   ____",
     " ] good [",
     "   ^^^^",
@@ -40,7 +41,7 @@ while not thumby.buttonB.justPressed():
 
     fps.tick()
     cur_fps = fps.fps()
-    textmode.print_text(3, 4, f"{cur_fps:3.0f} fps", textmode.inverted)
+    textmode.print_text(4, 4, f"{cur_fps:4.1f}/s", textmode.inverted)
 
     shift += 1
     thumby.display.update()

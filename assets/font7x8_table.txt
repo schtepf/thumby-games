@@ -9,6 +9,8 @@
 
 Specials:
 	&	heart
+  % flash
+  @ smilie
 	[	left arrow
 	]	right arrow
 	^	up arrow
