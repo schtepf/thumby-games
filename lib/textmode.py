@@ -8,8 +8,9 @@ font78_bg = bytearray([0,0,0,0,0,0,0,0,127,127,127,15,0,0,0,31,31,31,31,31,0,127
 
 block = const(1)
 outline = const(2)
-overlay = const(3)
-overlay_outline = const(4)
+inverted = const(3)
+overlay = const(4)
+overlay_outline = const(5)
 
 @micropython.viper
 def print_text(x: int, y: int, text, mode: int):
@@ -34,6 +35,8 @@ def print_text(x: int, y: int, text, mode: int):
                 buf[buf_offset + i] = fg_byte
             elif mode == outline:
                 buf[buf_offset + i] = bg_byte ^ fg_byte
+            elif mode == inverted:
+                buf[buf_offset + i] = 0xff ^ fg_byte
             elif mode == overlay:
                 buf[buf_offset + i] = (buf_byte & (0xff ^ bg_byte)) | fg_byte
             elif mode == overlay_outline:

@@ -1,7 +1,9 @@
 import thumby
 import textmode
+from fps import FPS
 
 thumby.display.setFPS(2)
+fps = FPS(5)
 
 lines = [
     "This is a",
@@ -35,6 +37,10 @@ while not thumby.buttonB.justPressed():
         
     for l in range(5):
         textmode.print_text(0, l, lines[(l + shift) % len(lines)], mode)
+
+    fps.tick()
+    cur_fps = fps.fps()
+    textmode.print_text(3, 4, f"{cur_fps:3.0f} fps", textmode.inverted)
 
     shift += 1
     thumby.display.update()
