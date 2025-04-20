@@ -1,6 +1,29 @@
-import thumby
+# TEXTMODE implements a 10 x 5 character text mode display with fixed character positions.
+# It comes with its own 7x8 pixel font and can optionally overlay text over other graphics. 
+# The module emphasises simplicity of use (no setup needed) and rendering efficiency.
+# It only supports uppercase letters A-Z, digits 0-9, and some ASCII punctuation, for a total
+# character set of 64 code points covering the ASCII range 32 .. 95. A few code points have
+# been substituted by special symbols:
+#   &  heart
+#   %  flash
+#   @  smiley
+#   [  left arrow
+#   ]  right arrow
+#   ^  up arrow
+#   _  down arrow
+#   \  unsupported character (code 60 = ASCII 92)
+#
+# textmode.print_text(x, y, text, mode)
+#  - x (0 .. 9), y (0 .. 4): text coordinates of first character to be displayed
+#  - text: a Python string with text to be rendered (no line breaks)
+#  - mode: rendering mode, represented by a module constant
+#      + textmode.block: normal rendering of white text with black background
+#      + textmode.inverted: black on white block rendering
+#      + textmode.outline: render white outline on black background
+#      + textmode.overlay: overlay white text over graphics, with black outline
+#      + textmode.overlay_outline: overlay white outline filled in black
 
-## TODO: documentation
+import thumby
 
 # bitmap data for 7x8 font: 64 codepoints with 7px x 8px each (= 7 bytes)
 font78_fg = bytearray([0,0,0,0,0,0,0,0,0,46,6,0,0,0,0,0,14,0,14,0,0,0,20,62,20,62,20,0,0,36,46,127,58,18,0,0,8,76,62,25,8,0,0,12,30,60,30,12,0,0,0,0,6,8,0,0,0,0,28,62,34,0,0,0,0,34,62,28,0,0,0,20,8,62,8,20,0,0,8,8,62,8,8,0,0,0,64,48,0,0,0,0,8,8,8,8,8,0,0,0,48,48,0,0,0,0,48,56,28,14,6,0,0,28,62,34,34,28,0,0,32,36,62,62,32,0,0,36,50,58,42,36,0,0,34,42,42,62,20,0,0,12,10,8,62,62,0,0,38,46,42,58,18,0,0,28,62,42,42,24,0,0,2,34,50,10,6,0,0,20,62,42,42,20,0,0,4,42,42,62,28,0,0,0,18,54,0,0,0,0,0,68,52,0,0,0,0,0,8,28,54,34,0,0,0,52,52,52,0,0,0,34,54,28,8,0,0,0,4,34,14,4,0,0,0,44,76,64,76,44,0,0,60,62,10,10,60,0,0,62,62,42,42,20,0,0,28,62,34,34,38,0,0,62,62,34,34,28,0,0,62,62,42,42,34,0,0,62,62,10,10,2,0,0,28,62,34,42,58,0,0,62,62,8,8,62,0,0,34,62,62,34,34,0,0,18,34,62,30,2,0,0,62,62,8,20,34,0,0,62,62,32,32,32,0,0,62,6,28,6,62,0,0,62,6,8,48,62,0,0,28,62,34,34,28,0,0,62,62,18,18,12,0,0,28,62,34,50,44,0,0,62,62,18,18,44,0,0,36,46,42,58,18,0,0,2,62,62,2,2,0,0,30,62,32,32,30,0,0,14,30,32,16,14,0,0,30,48,28,48,30,0,0,34,54,8,20,34,0,0,6,62,56,8,6,0,0,38,50,42,38,50,0,8,20,34,8,12,12,0,0,62,34,42,34,62,0,0,24,24,8,34,20,8,0,8,4,114,100,8,0,0,16,38,78,32,16,0])

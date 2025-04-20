@@ -10,7 +10,7 @@
 Specials:
 	&	heart
   % flash
-  @ smilie
+  @ smiley
 	[	left arrow
 	]	right arrow
 	^	up arrow
