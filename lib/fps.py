@@ -6,6 +6,7 @@
 # fps_ctr = FPS(N)
 # fps_ctr.tick() # call once per frame
 # cur_fps = fps_ctr.fps() # floating-point value
+# n_ticks = fps.frame()   # frame counter
 
 import time
 
@@ -14,6 +15,7 @@ class FPS:
         self.N = N
         self.ms_per_frame = [100, ] * N
         self.idx = 0
+        self.ticks = 0
         self.t0 = time.ticks_ms()
     
 
@@ -26,8 +28,12 @@ class FPS:
             self.idx = 0
         self.ms_per_frame[self.idx] = dt
         self.idx += 1
+        self.ticks += 1
     
     # compute running average fps (floating-point)
     def fps(self) -> float:
         return self.N * 1000 / sum(self.ms_per_frame)
     
+    # frame counter
+    def frame(self) -> int:
+        return self.ticks

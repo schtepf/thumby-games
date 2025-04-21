@@ -22,6 +22,12 @@
 #      + textmode.outline: render white outline on black background
 #      + textmode.overlay: overlay white text over graphics, with black outline
 #      + textmode.overlay_outline: overlay white outline filled in black
+#
+# textmode.scroll_text(x, y, text, mode)
+#  - x (0 .. 71): pixel position where string is displayed (x < 0 also allowed)
+#  - similar to print_text(), but allows fine positioning of text in five fixed rows
+#  - can also be used to create scrolling rows of text, off-screen characters skipped quite efficiently
+#  - implemented separately so print_text() can be maximally efficient
 
 import thumby
 
@@ -65,3 +71,38 @@ def print_text(x: int, y: int, text, mode: int):
             elif mode == overlay_outline:
                 buf[buf_offset + i] = (buf_byte | bg_byte) ^ fg_byte
         x += 1
+
+@micropython.viper
+def scroll_text(x: int, y: int, text, mode: int):
+    buf = ptr8(thumby.display.display.buffer)
+    fg = ptr8(font78_fg)
+    bg = ptr8(font78_bg)
+    if not(0 <= y < 5):
+        return
+    for char in text.upper():
+        code = int(ord(char)) - 32
+        if not(0 <= code <= 63):
+            code = 60 # invalid codepoint
+        if x >= 72:
+            break # all further characters are off-screen
+        if x <= -7:
+            x += 7 # character completely off-screen -> skip
+            continue
+        buf_offset = y * 72
+        font_offset = code * 7
+        for i in range(7):
+            if x >= 0 and x <= 71:
+                fg_byte = fg[font_offset + i]
+                bg_byte = bg[font_offset + i]
+                buf_byte = buf[buf_offset + x]
+                if mode == block:
+                    buf[buf_offset + x] = fg_byte
+                elif mode == outline:
+                    buf[buf_offset + x] = bg_byte ^ fg_byte
+                elif mode == inverted:
+                    buf[buf_offset + x] = 0xff ^ fg_byte
+                elif mode == overlay:
+                    buf[buf_offset + x] = (buf_byte & (0xff ^ bg_byte)) | fg_byte
+                elif mode == overlay_outline:
+                    buf[buf_offset + x] = (buf_byte | bg_byte) ^ fg_byte
+            x += 1
