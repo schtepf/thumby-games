@@ -9,8 +9,8 @@
 
 Specials:
 	&	heart
-  % flash
-  @ smiley
+  % (B) button
+  @ (A) button
 	[	left arrow
 	]	right arrow
 	^	up arrow
