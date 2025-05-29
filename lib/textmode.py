@@ -5,8 +5,8 @@
 # character set of 64 code points covering the ASCII range 32 .. 95. A few code points have
 # been substituted by special symbols:
 #   &  heart
-#   %  flash
-#   @  smiley
+#   @  (A) button
+#   %  (B) button
 #   [  left arrow
 #   ]  right arrow
 #   ^  up arrow
@@ -15,7 +15,7 @@
 #
 # textmode.print_text(x, y, text, mode)
 #  - x (0 .. 9), y (0 .. 4): text coordinates of first character to be displayed
-#  - text: a Python string with text to be rendered (no line breaks)
+#  - text: a Python string with text to be rendered (\n = line break)
 #  - mode: rendering mode, represented by a module constant
 #      + textmode.block: normal rendering of white text with black background
 #      + textmode.inverted: black on white block rendering
@@ -27,7 +27,7 @@
 #  - x (0 .. 71): pixel position where string is displayed (x < 0 also allowed)
 #  - similar to print_text(), but allows fine positioning of text in five fixed rows
 #  - can also be used to create scrolling rows of text, off-screen characters skipped quite efficiently
-#  - implemented separately so print_text() can be maximally efficient
+#  - implemented separately so print_text() can be maximally efficient, line breaks not allowed
 
 import thumby
 
@@ -46,9 +46,16 @@ def print_text(x: int, y: int, text, mode: int):
     buf = ptr8(thumby.display.display.buffer)
     fg = ptr8(font78_fg)
     bg = ptr8(font78_bg)
-    if not(0 <= y < 5):
+    if not (0 <= y < 5):
         return
+    x0 = x # remember initial x for linebreak
     for char in text.upper():
+        if char == "\n":
+            x = x0
+            y += 1
+            if y >= 5:
+                return
+            continue
         code = int(ord(char)) - 32
         if not(0 <= code <= 63):
             code = 60 # invalid codepoint
