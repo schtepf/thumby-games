@@ -114,42 +114,59 @@ def ellipse(x: int, y: int, rx: int, ry: int, mode: int):
         vline(x - rx, y - dy, y + dy, bdry_mode)
         
 
-thumby.display.setFPS(0)
 fps = FPS()
+thumby.display.setFPS(10)
+
+while fps.time() < 2.0:
+    thumby.display.fill(0)
+    fps.tick()
+    textmode.print_text(0, 0,
+        "@ cycle\n  modes\n\n% exit", textmode.block)
+    thumby.display.update()
+
+thumby.display.setFPS(0)
+fps.tock()
+mode = 1
 
 size = 20
+
 while not thumby.buttonB.justPressed():
+    if thumby.buttonA.justPressed():
+        mode += 1
+        if mode > 1:
+            mode = 1
+        # optional mode init code
+        fps.tock()
+
     thumby.display.fill(0)
-    if thumby.buttonU.pressed():
-        size += 1
-    elif thumby.buttonD.pressed():
-        if size > 1:
-            size -= 1
-
-    mode = xor # for side lozenges
-    if thumby.buttonL.pressed():
-        mode = outline
-    elif thumby.buttonR.pressed():
-        mode = bg_outline
-
-    ellipse(35, 19, size, size, bg_outline)
-    lozenge(35, 19, size, fill)
-    # lozenge(15, 19, 15, mode)
-    ellipse(15, 19, size // 4, 15, mode)
-    # lozenge(56, 19, 15, mode)
-    rect(41, 10, 66, 30, mode)
-    
-    
-
     fps.tick()
-    cur_fps = fps.fps()
-    textmode.print_text(3, 4, f"{cur_fps:5.1f}/s", textmode.overlay)
-    textmode.print_text(0, 0, f"{size:3d} px", textmode.overlay)
-    if fps.tock_time() < 5:
-        textmode.print_text(0, 0, "^ larger ", textmode.block)
-        textmode.print_text(0, 1, "_ smaller ", textmode.block)
-        textmode.print_text(0, 2, "[ outline ", textmode.block)
-        textmode.print_text(0, 3, "] inverted", textmode.block)
-        textmode.print_text(0, 4, "% quit    ", textmode.block)
+
+    if mode == 1:
+        if thumby.buttonU.pressed():
+            size += 1
+        elif thumby.buttonD.pressed():
+            if size > 1:
+                size -= 1
+
+        op = xor # for side lozenges
+        if thumby.buttonL.pressed():
+            op = outline
+        elif thumby.buttonR.pressed():
+            op = bg_outline
+
+        ellipse(35, 19, size, size, bg_outline)
+        lozenge(35, 19, size, fill)
+        ellipse(15, 19, size // 4, 15, op)
+        rect(41, 10, 66, 30, op)
+    
+        cur_fps = fps.fps()
+        textmode.print_text(3, 4, f"{cur_fps:5.1f}/s", textmode.overlay)
+        textmode.print_text(0, 0, f"{size:3d} px", textmode.overlay)
+        if fps.tock_time() < 4:
+            textmode.print_text(0, 0, 
+                "mode 1\n\n^/_ size  \n[ outline \n] inverted", textmode.block)
+
+    else:
+        raise Exception("FUCK")
 
     thumby.display.update()
