@@ -87,14 +87,14 @@ def scroll_text(x: int, y: int, text, mode: int):
     if not(0 <= y < 5):
         return
     for char in text.upper():
-        code = int(ord(char)) - 32
-        if not(0 <= code <= 63):
-            code = 60 # invalid codepoint
         if x >= 72:
             break # all further characters are off-screen
         if x <= -7:
             x += 7 # character completely off-screen -> skip
             continue
+        code = int(ord(char)) - 32
+        if not(0 <= code <= 63):
+            code = 60 # invalid codepoint
         buf_offset = y * 72
         font_offset = code * 7
         for i in range(7):
