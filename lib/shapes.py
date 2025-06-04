@@ -1,5 +1,6 @@
 # SHAPES draws simple geometric shapes by rendering vertical lines.
-# There is a separate function for each supported shape (see below).
+# There is a separate function for each supported shape (see below),
+# as well as a generic object Shape for drawing user-defined shapes.
 # All shapes can be rendered in one of five different drawing modes:
 #   shapes.fill       = fill shape
 #   shapes.outline    = fill shape with black outline
@@ -11,6 +12,11 @@
 #  - draw filled rectangle from top left (x0, y0) to bottom right (x1, y1)
 #  - according to mode, and automatically clipped to screen
 # 
+# shapes.rect_outline(x0, y0, x1, y1, col)
+#  - draw rectangle outline (1px width) in white (col != 0) or black (col = 0)
+#  - from top left (x0, y0) to bottom right (x1, y1), automatically clipped to screen
+#  - aims to be as fast as possible (unlike thumby.display.drawRectangle())
+#
 # shapes.ellipse(x, y, rx, ry, mode)
 #  - draw filled ellipse around (x, y) with radii rx and ry
 #  - according to mode, and automatically clipped to screen
@@ -18,8 +24,24 @@
 # shapes.lozenge(x, y, size, mode)
 #  - only for testing purposes
 #  - lozenge of width and height size, centered at (x, y)
-# 
-# The core function for line rendering can be used to create user-defined shapes:
+#
+# shp = shapes.Shape() creates an object for rendering arbitrary shapes,
+# which must be convex along the y-axis. The shape is defined by setting
+# the start and end of the vertical line to be drawn at each x-coordinate
+# in internal arrays shp.y1[] and shp.y2[]. Only the part of the arrays
+# actually rendered to screen needs to be updated.
+#
+# shp.draw(x1, x2, mode)
+#  - draw shape by rendering vertical lines for x-coordinates from x1 to x2 
+#  - x1 < 0 and x2 >= 72 are allowed, indicating that border is outside screen
+#  - shp.y1[] and shp.y2[] can also be out of range, which determines whether
+#    a border is drawn at the top and bottom of the vertical line
+#  - no scanlines are drawn for x with shp.y2[x] < shp.y1[x]
+#  
+# shp.reset()
+#  - reset internal arrays shp.y1[] and shp.y2[] for defensive programming
+#
+# The core function for rendering vertical can also be used directly for maximal flexibility:
 # shapes.vline(x, y1, y2, mode)
 #  - draw vertical line from (x, y1) to (x, y2) inclusive, according to mode
 #  - automatically clipped to screen
@@ -86,7 +108,7 @@ def vline(x: int, y1: int, y2: int, mode: int):
             scr[y2_byte * 72 + x] ^= 1 << y2_msb
     
         
-@micropython.native
+@micropython.viper
 def lozenge(x0: int, y0: int, size: int, mode: int):
     for i in range(size):
         j = size - i - 1
@@ -94,7 +116,7 @@ def lozenge(x0: int, y0: int, size: int, mode: int):
         if i > 0:
             vline(x0 + i, y0 - j, y0 + j, mode)
 
-@micropython.native
+@micropython.viper
 def rect(x0: int, y0: int, x1: int, y1: int, mode: int):
     bdry = mode == outline or mode == bg_outline
     if not bdry:
@@ -109,6 +131,38 @@ def rect(x0: int, y0: int, x1: int, y1: int, mode: int):
             vline(x1, y0, y1, bdry_mode)
             for x in range(x0 + 1, x1):
                 vline(x, y0, y1, mode)
+
+# internal helper to draw horizontal line w/o safety checks
+@micropython.viper
+def _hline(x1: int, x2: int, y: int, col: int):
+    scr = ptr8(thumby.display.display.buffer)
+    y_byte_offset = (y >> 3) * 72
+    y_bit = y & 0x07
+    y_mask = 1 << y_bit
+    if col:
+        for x in range(x1, x2 + 1):
+            scr[y_byte_offset + x] |= y_mask
+    else:
+        y_mask = 0xff ^ y_mask
+        for x in range(x1, x2 + 1):
+            scr[y_byte_offset + x] &= y_mask
+
+@micropython.viper
+def rect_outline(x0: int, y0: int, x1: int, y1: int, col: int):
+    mode = fill if col else bg_fill
+    if 0 <= x0 < 72:
+        vline(x0, y0, y1, mode)
+    if 0 <= x1 < 72 and x1 != x0:
+        vline(x1, y0, y1, mode)
+    if x0 < 0:
+        x0 = 0
+    if x1 >= 72:
+        x1 = 71
+    if x0 + 1 < x1 and y0 <= y1:
+        if 0 <= y0 < 40:
+            _hline(x0, x1, y0, col)
+        if y0 < y1 < 40:
+            _hline(x0, x1, y1, col)
 
 @micropython.native
 def ellipse(x: int, y: int, rx: int, ry: int, mode: int):
