@@ -31,13 +31,19 @@
 #  - from top left (x0, y0) to bottom right (x1, y1), automatically clipped to screen
 #  - aims to be as fast as possible (unlike thumby.display.drawRectangle())
 #
-# shapes.ellipse(x, y, rx, ry, mode)
-#  - draw filled ellipse around (x, y) with radii rx and ry
+# shapes.ellipse(x0, y0, rx, ry, mode)
+#  - draw filled ellipse around (x0, y0) with radii rx and ry
 #  - according to mode, and automatically clipped to screen
 #
-# shapes.lozenge(x, y, size, mode)
-#  - only for testing purposes
-#  - lozenge of width and height size, centered at (x, y)
+# shapes.lozenge(x0, y0, rx, ry, mode)
+#  - draw filled rombus shape centered at (x0, y0) with half diametres rx and ry
+#  - according to mode, and automatically clipped to screen
+#
+# shapes.twister(phase, wavelen1, wavelen2, x1=-1, x2=72, y0=19.5, ry=19)
+#  - draws a horizontal twisting spiral with given phase (at x=0.0) and wavelength (in pixels)
+#  - x0, x1 is an integer range of pixel coordinates to draw (terminating shape at end)
+#  - spiral can be tightened or loosened by setting wavelen2 (at x2) different from wavelen1 (at x1)
+#  - the spiral is centered vertically at y0 and extends for ry above and below
 #
 # shp = shapes.Shape() creates an object for rendering arbitrary shapes,
 # which must be convex along the y-axis. The shape is defined by setting
@@ -66,13 +72,13 @@
 #  - draw vertical line from (x, y1) to (x, y2) inclusive with call shapes.vline(x, x, y1, y2, mode)
 #  - specify x2 > x1 to draw wide line (x2 - x1 + 1 pixels) efficiently (used e.g. by rect())
 #  - automatically clipped to screen, no line is drawn if y2 < y1 or x2 < x1
-#  - draws line according to mode (fill, bg_fill, xor), with single-pixel outline for outline and bg_outline
+#  - draws line according to mode (fill, bg_fill, xor), with single-pixel outline (for outline and bg_outline)
 #
 # shapes.hline(y, x1, x2, mode)
 #  - draw horizontal line from (x1, y) to (x2, y) inclusive
 #  - automatically clipped to screen, no line is drawn if x1 < x2
 #  - draws line according to mode (fill, bg_fill, xor), outline modes are ignored
-#  - this function is useful for drawing horizontal outline or grid, but inefficient for shapes
+#  - this function is useful for drawing a horizontal outline or grid, but inefficient for shapes
 #
 
 import thumby
@@ -219,6 +225,8 @@ class Shape:
                             y1_bdry = y1_nb
                         if y2_nb < y2_bdry:
                             y2_bdry = y2_nb
+                    else:
+                        y1_bdry = y2_ - 1 # right neigbour empty -> close outline
                 if x > x1_:
                     y1_nb = upper[x - 1]
                     y2_nb = lower[x - 1]
@@ -227,6 +235,8 @@ class Shape:
                             y1_bdry = y1_nb
                         if y2_nb < y2_bdry:
                             y2_bdry = y2_nb
+                    else:
+                        y1_bdry = y2_ - 1 # left neigbour empty -> close outline
                 if y1_bdry - 1 > y1_:
                     vline(x, x, y1_ + 1, y1_bdry - 1, bdry_mode)
                 if y2_bdry + 1 < y2_:
@@ -297,3 +307,24 @@ def ellipse(x0: float, y0: float, rx: float, ry: float, mode: int):
         upper[x] = int(math.floor(y0 - dy + 0.5))
         lower[x] = int(math.floor(y0 + dy + 0.5))
     shape.draw(x_min_shp, x_max_shp, mode) # so method knows whether to fill in left/right outline
+
+@micropython.native
+def twister(phase: float, wavelen1: float, wavelen2: float, x1: int = -1, x2: int = 72, y0: float = 19.5, ry: float = 18.0):
+    x1_ = x1 if x1 >= 0 else 0
+    x2_ = x2 if x2 < 72 else 71
+    omega = 2.0 * math.pi / wavelen1 # angular speed of spiral at x1
+    omega2 = 2.0 * math.pi / wavelen2 # desired angular speed at x2 
+    alpha = (omega2 - omega) / (x2 - x1) # angular accel to achieve tightening over [x1, x2]
+    upper = shape.upper
+    lower = shape.lower
+    for x in range(x1_, x2_ + 1):
+        dx = x - x1
+        phi = phase + omega * dx + 0.5 * alpha * dx * dx
+        dy = ry * math.sin(phi)
+        upper[x] = int(math.floor(y0 - dy - 0.0)) # shift upper/lower by 0.5 px away from y0
+        lower[x] = int(math.floor(y0 + dy + 1.0))
+    shape.draw(x1, x2, outline)
+    shape.upper, shape.lower = shape.lower, shape.upper # flip arrays to draw backsides
+    shape.draw(x1, x2, bg_outline)
+    shape.upper, shape.lower = shape.lower, shape.upper
+
