@@ -63,8 +63,9 @@
 # obj.visible(visible)
 #  - whether sprite is visible (True) or not (False)
 #
-# obj.update(dt)
+# obj.update(dt, ax=0.0, ay=0.0)
 #  - update position of sprite over dt seconds
+#  - can specify an additional global acceleration added to internal values
 #
 # obj.draw(invert=False)
 #  - draw sprite at current position (inverted if invert=True)
@@ -181,7 +182,7 @@ class SpriteObj:
 
     @micropython.native
     def visible(self, visible: bool):
-        self.visible = visible
+        self.is_visible = visible
 
     @micropython.native
     def onscreen(self, margin=0.0) -> (int, int):
@@ -192,11 +193,11 @@ class SpriteObj:
         return out_x, out_y
     
     @micropython.native
-    def update(self, dt: float):
+    def update(self, dt: float, ax: float = 0.0, ay: float = 0.0):
         vx = self.vx
         vy = self.vy
-        vx += self.ax * dt
-        vy += self.ay * dt
+        vx += (self.ax + ax) * dt
+        vy += (self.ay + ay) * dt
         fx = self.fx * dt
         fx = fx if fx <= 1.0 else 1.0 # make sure we don't decelerate past full stop
         fy = self.fy * dt
@@ -205,12 +206,12 @@ class SpriteObj:
         vy *= 1.0 - fy
         self.vx = vx
         self.vy = vy
-        self.x += self.vx
-        self.y += self.vy
+        self.x += self.vx * dt
+        self.y += self.vy * dt
 
     @micropython.native
     def draw(self, invert: bool = False):
-        if self.visible:
+        if self.is_visible:
             x = int(math.floor(self.x + 0.5))
             y = int(math.floor(self.y + 0.5))
             spr = self.frames[self.frame]
