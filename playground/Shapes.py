@@ -10,17 +10,35 @@ fps.tock()
 
 shp = shapes.Shape()
 
-page = 0 # 0 = start page, 1 = shapes, 2 = twister
+page = 0 # 0 = start page, 1 = shapes, 2 = twister, 3 = parallax
 drawmode = shapes.fill
 shape = 1 # 0 = none, 1 = rect, 2 = ellipse, 3 = lozenge, 4 = rect_outline
 speed = 3
 wavelen2 = wavelen = 40.0
 phase = 0.0
 
+# mountain-style parallax layers, each exactly one screen wide and cyclic (first entry at x=0 ~ last entry at x=72)
+# y-coordinates start at 0 and increase to the top (adjusted in the program code)
+parallax = [
+    [(0., 5.), (10., 20.), (14., 10.), (20., 16.), (26, 2.), (34., 12.), (40., 0.), (45., 15.), (50., 8.), (53., 24.), (60., 5.), (66., 12.), (72., 5.)],
+    [(0., 5.), (20., 20.), (23.5, 18.), (27., 20.), (40., 4.), (45., 12.), (47., 10.), (49., 12.), (60., 0.), (65., 10.), (72., 5.)],
+    [(0, 2.), (10, 8.), (20, 0.), (28., 10.), (40., 5.), (50., 14.), (60., 0.), (66., 10.), (72., 2.)]
+]
+offsets = [0., 0., 0.] # corresponding horizontal offsets
+pspeed = 1.0   # scrolling speed
+pheight = 2.0  # view height (determines offsets btw layers)
+
+@micropython.viper
+def draw_sky():
+    scr = ptr8(thumby.display.display.buffer)
+    for i in range(72):
+        scr[i] = 0b00101011
+        scr[i+72] = 0b10001001
+
 while not thumby.buttonB.pressed():
     if thumby.buttonA.justPressed():
         page += 1
-        if page > 2:
+        if page > 3:
             page = 0
         fps.tock() # timing relative to page
     elif thumby.buttonL.justPressed():
@@ -120,7 +138,50 @@ while not thumby.buttonB.pressed():
                 "2=twister\n\n^ tighten\n_ loosen\n[]speed", textmode.block)
         else:
             textmode.print_text(3, 4, f"{cur_fps:5.1f}/s", textmode.overlay)
-        
+    
+    elif page == 3:
+        if thumby.buttonL.pressed():
+            if pspeed > 0.1:
+                pspeed -= 0.02
+        elif thumby.buttonR.pressed():
+            pspeed += 0.02
+        elif thumby.buttonU.pressed():
+            pheight += 0.1
+        elif thumby.buttonD.pressed():
+            if pheight > 0.0:
+                pheight -= 0.1
+
+        thumby.display.fill(0)
+        draw_sky()
+        l = 0
+        for layer in parallax:
+            offset = offsets[l]
+            offsets[l] -= pspeed * (l + 1)
+            while offsets[l] < 0.:
+                offsets[l] += 72.
+            l += 1
+            height = 20. + pheight * l * l
+            n = len(layer)
+            shp.reset(lower=int(height + 10.))
+            x1 = layer[0][0]
+            y1 = layer[0][1]
+            for i in range(1, n):
+                x0, y0 = x1, y1 # shift to next pair of points
+                x1 = layer[i][0]
+                y1 = layer[i][1]
+                shp.line_segment(x0 + offset, height - y0, x1 + offset, height - y1, upper=True)
+                if (x1 + offset) >= 72.:
+                    offset -= 72. # wrap shape around to left side of screen and redraw this line segment
+                    shp.line_segment(x0 + offset, height - y0, x1 + offset, height - y1, upper=True)
+            shp.draw(-1, 72, shapes.outline)
+
+        cur_fps = fps.fps()
+        if fps.tock_time() < 4:
+            textmode.print_text(0, 0, 
+                "3=parallax\n\n\n^_ up/down\n[]speed", textmode.block)
+        else:
+            textmode.print_text(3, 4, f"{cur_fps:5.1f}/s", textmode.overlay)
+
 
     else:
         raise Exception("INTERNAL ERROR")

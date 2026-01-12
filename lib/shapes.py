@@ -1,6 +1,14 @@
-# SHAPES draws simple geometric shapes by rendering vertical lines.
-# There is a separate function for each supported shape (see below),
-# as well as a generic object Shape for drawing user-defined shapes.
+# SHAPES draws simple geometric shapes by rendering vertical lines,
+# which can be optimised well because of VRAM layout on the Thumby.
+# This approach implies some limitations, though. In particular,
+# shapes must be convex along the y-axis, i.e. every vertical section
+# of the shape must be a single unbroken line. Only filled shapes
+# are supported, but they can additionally have a single-pixel outline,
+# which adds a considerable amount of complexity to the code. Keep in
+# mind that the library is designed for drawing large shapes efficiently.
+# It will be faster to render e.g. many small triangles by plotting
+# individual pixels.
+#
 # All shapes can be rendered in one of five different drawing modes:
 #   shapes.fill       = fill shape
 #   shapes.outline    = fill shape with black outline
@@ -21,13 +29,13 @@
 # square (usually setting the x-coordinate at the left or right boundary).
 # If this is too complicated, we will fall back on evaluating float test points
 # at 1-pixel increments and mapping them to pixel coordinates.
-
+#
 # shapes.rect(x0, y0, x1, y1, mode)
 #  - draw filled rectangle from top left (x0, y0) to bottom right (x1, y1)
 #  - according to mode, and automatically clipped to screen
 # 
 # shapes.rect_outline(x0, y0, x1, y1, mode)
-#  - draw rectangle outline (1px width) according to mode (with outline versions ignored)
+#  - draw rectangle outline (1px width) according to mode (fill, bg_fill, xor)
 #  - from top left (x0, y0) to bottom right (x1, y1), automatically clipped to screen
 #  - aims to be as fast as possible (unlike thumby.display.drawRectangle())
 #
@@ -36,7 +44,7 @@
 #  - according to mode, and automatically clipped to screen
 #
 # shapes.lozenge(x0, y0, rx, ry, mode)
-#  - draw filled rombus shape centered at (x0, y0) with half diametres rx and ry
+#  - draw filled rombus shape centered at (x0, y0) with half-diametres rx and ry
 #  - according to mode, and automatically clipped to screen
 #
 # shapes.twister(phase, wavelen1, wavelen2, x1=-1, x2=72, y0=19.5, ry=19)
@@ -45,28 +53,61 @@
 #  - spiral can be tightened or loosened by setting wavelen2 (at x2) different from wavelen1 (at x1)
 #  - the spiral is centered vertically at y0 and extends for ry above and below
 #
+#
 # shp = shapes.Shape() creates an object for rendering arbitrary shapes,
 # which must be convex along the y-axis. The shape is defined by setting
 # the start and end of the vertical line to be drawn at each x-coordinate
 # in internal arrays shp.upper[] and shp.lower[]. Only the part of the arrays
 # actually rendered to screen needs to be updated.
 #
+# shapes.shape is a globally allocated scratch object, which all drawing functions
+# in the module share for rendering objects.
+#
 # shp.draw(x1, x2, mode)
 #  - draw shape by rendering vertical lines for x-coordinates from x1 to x2 
 #  - x1 < 0 and x2 >= 72 are allowed, indicating that border is outside screen
-#  - shp.y1[] and shp.y2[] can also be out of range, which determines whether
-#    a border is drawn at the top and bottom of the vertical line
-#  - no vlines are drawn for x with shp.y2[x] < shp.y1[x]
-#  - in outline modes, y1[] and y2[] specify the outer boundary of the shape,
-#    i.e. an inner outline is drawn with all pixels between y1[x] and y2[x]
+#    (relevant for outline and bg_outline modes, to determine if border is drawn)
+#  - shp.upper[] and shp.lower[] can also be out of screen range
+#    (relevant for outline and bg_outline modes, to determine if border is drawn)
+#  - no vlines are drawn for x with shp.lower[x] < shp.upper[x]
+#  - in outline modes, upper[] and lower[] specify the outer boundary of the shape,
+#    i.e. an inner outline is drawn with upperl[x] <= y <= lower[x]
 #  - the outline will be incomplete at the left and right borders of the screen
-#    because we would need to known y1[-1], y2[-1], y1[72], y2[72] for correct
-#    rendering; this is accepted to keep array offsets simple
+#    because we would need to known upper[-1], lower[-1], upper[72], and lower[72]
+#    for correct rendering; this is accepted to keep array offsets simple
 #  
-# shp.reset()
-#  - reset internal arrays shp.y1[] and shp.y2[] for defensive programming
+# shp.reset(x1=0, x2=71, upper=40, lower=-1)
+#  - reset internal arrays shp.upper[] and shp.lower[] for defensive programming
+#  - default sets upper[x]=40 and lower[x]=-1, so no line will be drawn unless both are updated
 #
-# Internal rendering functions are also available for maximal flexibility:
+# shp.line_segment(x0, y0, x1, y1, upper, fine=False):
+#  - utility function for creating polygonal shapes to be rendered with shp.draw
+#  - draws line segment from (x0, y0) to (x1, y1), automatically clipped as needed
+#  - all coordinates are floating-point for precise position
+#  - draw upper boundary if upper=True, lower boundary if upper=False
+#  - if fine=True, take care to include all pixels that overlap with polygon
+#  - only extends shape upwards (for upper=True) or downwards (for upper=False),
+#    so multiple line segments can easily be combined into consistent polygon
+#  - recommendation: call shp.reset() before drawing polygon outline
+#
+#
+# poly = shapes.ConvexPoly(x, y, unit=1) creates a convex polygon that can be
+# scaled, rotated and then rendered at any position on the screen. The polygon is
+# specified by listing the coordinates of vertices in counter-clockwise order. The 
+# reference point for positioning and rotation is always (0, 0). We do not check
+# correctness of the specification or whether the polygon is really convex. This can
+# be abused to render some y-convex shapes as long as they are not rotated too far.
+#  - x, y are lists of the same length specifying the coordinates of the vertices
+#    of a convex polygon in counter-clockwise order (otherwise: undefined behaviour)
+#  - if unit != 1, all coordinates specified in the constructor are divided by unit,
+#    which can be used to simplify coordinates, e.g. point (1, 2) with unit=3
+#
+# poly.draw(x0, y0, mode, angle=0, sx=1, sy=1):
+#  - draw convex polygon with origin shifted to coordinates (x, y)
+#  - angle != 0 rotates polygon counter-clockwise by specified degrees
+#  - sx, sy are scaling factors in x and y dimension (before rotation)
+#
+# The internal rendering functions can also be called directly for maximal flexibility:
 #
 # shapes.vline(x1, x2, y1, y2, mode)
 #  - draw vertical line from (x, y1) to (x, y2) inclusive with call shapes.vline(x, x, y1, y2, mode)
@@ -182,13 +223,67 @@ class Shape:
         self.upper = array("l", [39 for x in range(0, 72)])
         self.lower = array("l", [0 for x in range(0, 72)])
 
-    def reset(self):
-        upper = ptr32(self.upper)
-        lower = ptr32(self.lower)
-        for x in range(0, 72):
-            upper[x] = 39
-            lower[x] = 0
-    
+    @micropython.native
+    def reset(self, x1: int = 0, x2: int = 71, upper: int = 40, lower: int = -1):
+        x1 = 0 if x1 < 0 else x1
+        x2 = 71 if x2 > 71 else x2
+        upper_data = self.upper
+        lower_data = self.lower
+        for x in range(x1, x2 + 1):
+            upper_data[x] = upper
+            lower_data[x] = lower
+
+    @micropython.native
+    def line_segment(self, x0: float, y0: float, x1: float, y1: float, upper: bool, fine: bool = False):
+        px0 = int(math.floor(x0 + 0.5))
+        px1 = int(math.floor(x1 + 0.5))
+        py0 = int(math.floor(y0 + 0.5))
+        py1 = int(math.floor(y1 + 0.5))
+        if px0 > px1 or px0 >= 72 or px1 < 0:
+            return # completely outside screen
+        bdry = self.upper if upper else self.lower # boundary data to write to
+        # extend boundary for (x0, y0) and (x1, y1), upwards (upper=True) or downwards (upper=False)
+        if upper:
+            if px0 >= 0 and py0 < bdry[px0]: # px0 < 72 ensured above
+                bdry[px0] = py0
+            if px1 < 72 and py1 < bdry[px1]: # px1 >= 0 ensured above
+                bdry[px1] = py1
+        else:
+            if px0 >= 0 and py0 > bdry[px0]:
+                bdry[px0] = py0
+            if px1 < 72 and py1 > bdry[px1]:
+                bdry[px1] = py1
+        # extend boundary for inner points of the line segment
+        if fine:
+            # if fine=True, maximise the range of pixels covered by evaluating line coordinates either
+            # at the left or the right boundary of each pixel (depending on slope and upper/lower boundary);
+            # we also include px0 or px1 if the line might touch an additional pixel there 
+            left_align = (upper and (y1 < y0)) or ((not upper) and (y1 > y0))
+            if left_align:
+                px0 += 1 # left align: draw points px0 + 1 .. px1 (because left bdry of px1 is further outside than y1)
+                px1 += 1 # right align: draw points px0 .. px1 - 1 (because right bdry of px0 is further outside than y0)
+        else:
+            px0 += 1 # only fill in coordinates between the end points
+        px0 = px0 if px0 >= 0 else 0   # clamp to valid range
+        px1 = px1 if px1 <= 72 else 72
+        if px1 > px0:
+            slope = (y1 - y0) / (x1 - x0)
+            # determine whether we determine line coordinates at left or right boundary of pixel,
+            # chosen to maximise the range of pixels covered by the shape
+            for px in range (px0, px1):
+                if fine:
+                    x = px - 0.5 if left_align else px + 0.5 # evaluate line at pixel boundary
+                else:
+                    x = float(px) # evaluate line at centre
+                y = y0 + slope * (x - x0)
+                py = int(math.floor(y + 0.5))
+                if upper:
+                    if py < bdry[px]:
+                        bdry[px] = py
+                else:
+                    if py > bdry[px]:
+                        bdry[px] = py
+
     @micropython.viper
     def draw(self, x1: int, x2: int, mode: int):
         bdry = mode == outline or mode == bg_outline
@@ -226,7 +321,7 @@ class Shape:
                         if y2_nb < y2_bdry:
                             y2_bdry = y2_nb
                     else:
-                        y1_bdry = y2_ - 1 # right neigbour empty -> close outline
+                        y1_bdry = y2_ # right neigbour empty -> close outline
                 if x > x1_:
                     y1_nb = upper[x - 1]
                     y2_nb = lower[x - 1]
@@ -236,13 +331,36 @@ class Shape:
                         if y2_nb < y2_bdry:
                             y2_bdry = y2_nb
                     else:
-                        y1_bdry = y2_ - 1 # left neigbour empty -> close outline
+                        y1_bdry = y2_ # left neigbour empty -> close outline
                 if y1_bdry - 1 > y1_:
                     vline(x, x, y1_ + 1, y1_bdry - 1, bdry_mode)
                 if y2_bdry + 1 < y2_:
                     vline(x, x, y2_bdry + 1, y2_ - 1, bdry_mode)
 
+
 shape = Shape() # shared by drawing functions
+
+class ConvexPoly:
+    def __init__(self, x: list[float], y: list[float], scale: float = 1.0):
+        n_x = length(x)
+        n_y = length(y)
+        if (n_x != n_y or n_x < 3):
+            raise Exception("x and y must be lists of the same length, with a least 3 elements")
+        self.x = [float(_x) / scale for _x in x]
+        self.y = [float(_y) / scale for _y in y]
+
+    @micropython.native
+    def draw(self, x0: float, y0: float, mode: int, angle: float = 0.0, sx: float = 1.0, sy: float = 1.0):
+        x = self.x # vertex coordinates after transformation
+        y = self.y
+        idx_L = x.index(min(x))   # treating x, y as circular buffers, idx_L .. idx_R gives the lower boundary 
+        idx_R = x.index(max(x))   # left-to-right, and the opposite direction gives the upper boundary left-to-right
+        xL = int(math.floor(x[idx_L] + 0.5)) # pixel range that needs to be drawn
+        xR = int(math.floor(x[idx_R] + 0.5))
+        shape.reset(xL, xR)
+        i = idx_L
+
+            
 
 @micropython.native
 def lozenge(x0: float, y0: float, rx: float, ry: float, mode: int):
@@ -274,7 +392,6 @@ def rect(x0: int, y0: int, x1: int, y1: int, mode: int):
             vline(x0 + 1, x1 - 1, y0 + 1, y1 - 1, fill_mode)
         rect_outline(x0, y0, x1, y1, bdry_mode)
 
-# NB: buggy as long as vline() still draws the outline points
 @micropython.viper
 def rect_outline(x0: int, y0: int, x1: int, y1: int, mode: int):
     if x1 < x0 or y1 < y0:
