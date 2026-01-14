@@ -93,7 +93,8 @@
 #
 # poly = shapes.ConvexPoly(x, y, unit=1) creates a convex polygon that can be
 # scaled, rotated and then rendered at any position on the screen. The polygon is
-# specified by listing the coordinates of vertices in counter-clockwise order. The 
+# specified by listing the coordinates of vertices in counter-clockwise order, using
+# a standard Cartesian coordinate system (with positive y towards the top!). The 
 # reference point for positioning and rotation is always (0, 0). We do not check
 # correctness of the specification or whether the polygon is really convex. This can
 # be abused to render some y-convex shapes as long as they are not rotated too far.
@@ -101,6 +102,9 @@
 #    of a convex polygon in counter-clockwise order (otherwise: undefined behaviour)
 #  - if unit != 1, all coordinates specified in the constructor are divided by unit,
 #    which can be used to simplify coordinates, e.g. point (1, 2) with unit=3
+#
+# poly.change(x, y, unit=1)
+#  - update polygon shape, with same arguments as constructor
 #
 # poly.draw(x0, y0, mode, angle=0, sx=1, sy=1):
 #  - draw convex polygon with origin shifted to coordinates (x, y)
@@ -342,25 +346,48 @@ shape = Shape() # shared by drawing functions
 
 class ConvexPoly:
     def __init__(self, x: list[float], y: list[float], scale: float = 1.0):
-        n_x = length(x)
-        n_y = length(y)
+        self.change(x, y, scale)
+
+    def change(self, x: list[float], y: list[float], scale: float = 1.0):
+        n_x = len(x)
+        n_y = len(y)
         if (n_x != n_y or n_x < 3):
             raise Exception("x and y must be lists of the same length, with a least 3 elements")
         self.x = [float(_x) / scale for _x in x]
         self.y = [float(_y) / scale for _y in y]
+        self.n = n_x
 
     @micropython.native
     def draw(self, x0: float, y0: float, mode: int, angle: float = 0.0, sx: float = 1.0, sy: float = 1.0):
-        x = self.x # vertex coordinates after transformation
-        y = self.y
+        phi = angle * math.pi / 180.0 # scale and rotate object coordinates
+        C = math.cos(phi) # rotation matrix [[C, -S], [S, C]]
+        S = math.sin(phi)
+        x = [C * x_ * sx - S * y_ * sy for x_, y_ in zip(self.x, self.y)]
+        y = [S * x_ * sx + C * y_ * sy for x_, y_ in zip(self.x, self.y)]
+        x = [x0 + x_ for x_ in x] # move origin to (x0, y0)
+        y = [y0 - y_ for y_ in y]
+        n = self.n
         idx_L = x.index(min(x))   # treating x, y as circular buffers, idx_L .. idx_R gives the lower boundary 
         idx_R = x.index(max(x))   # left-to-right, and the opposite direction gives the upper boundary left-to-right
         xL = int(math.floor(x[idx_L] + 0.5)) # pixel range that needs to be drawn
         xR = int(math.floor(x[idx_R] + 0.5))
+        if xL > xR or xL >= 72 or xR < 0:
+            return # completely off screen
+        # print(f"SHAPE {xL} .. {xR}")
         shape.reset(xL, xR)
-        i = idx_L
-
-            
+        i = idx_L # draw lower boundary from idx_L upwards to idx_R
+        while i != idx_R:
+            j = i + 1 if i + 1 < n else 0
+            # print(f" - LOWER: ({x[i]}, {y[i]}) .. ({x[j]}, {y[j]})")
+            shape.line_segment(x[i], y[i], x[j], y[j], upper=False)
+            i = j
+        i = idx_L # draw upper boundary from idx_L downwards to idx_R
+        while i != idx_R:
+            j = i - 1 if i > 0 else n - 1
+            # print(f" - UPPER: ({x[i]}, {y[i]}) .. ({x[j]}, {y[j]})")
+            shape.line_segment(x[i], y[i], x[j], y[j], upper=True)
+            i = j
+        shape.draw(xL, xR, mode)
 
 @micropython.native
 def lozenge(x0: float, y0: float, rx: float, ry: float, mode: int):

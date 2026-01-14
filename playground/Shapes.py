@@ -10,7 +10,7 @@ fps.tock()
 
 shp = shapes.Shape()
 
-page = 0 # 0 = start page, 1 = shapes, 2 = twister, 3 = parallax
+page = 0 # 0 = start page, 1 = shapes, 2 = twister, 3 = parallax, 4 = polygons
 drawmode = shapes.fill
 shape = 1 # 0 = none, 1 = rect, 2 = ellipse, 3 = lozenge, 4 = rect_outline
 speed = 3
@@ -28,17 +28,44 @@ offsets = [0., 0., 0.] # corresponding horizontal offsets
 pspeed = 1.0   # scrolling speed
 pheight = 2.0  # view height (determines offsets btw layers)
 
+@micropython.native
+def morphing_polygon(n: float, r: float = 20.0, obj: shapes.ConvexPoly = None) -> shapes.ConvexPoly:
+    n = n if n >= 3. else 3.
+    n_pts = int(math.ceil(n))
+    phi = [2. * math.pi * i / n for i in range(n_pts)]
+    x = [math.cos(t) * r for t in phi]
+    y = [math.sin(t) * r for t in phi]
+    if obj is None:
+        obj = shapes.ConvexPoly(x=x, y=y)
+    else:
+        obj.change(x=x, y=y)
+    return obj
+
+mode_tick = 0.0
+angle = 0.0
+n_poly = 3.0
+poly = morphing_polygon(n_poly)
+
 @micropython.viper
-def draw_sky():
+def draw_sky(lines: int):
     scr = ptr8(thumby.display.display.buffer)
-    for i in range(72):
-        scr[i] = 0b00101011
-        scr[i+72] = 0b10001001
+    if lines >= 1:
+        for i in range(72):
+            scr[i] = 0b00101011
+    if lines >= 2:
+        for i in range(72, 2 * 72):
+            scr[i] = 0b10001001
+    if lines >= 3:
+        for i in range(2 * 72, 3 * 72):
+            scr[i] = 0b00001000
+    if lines >= 4:
+        for i in range(3 * 72, 4 * 72):
+            scr[i] = 0b01000001
 
 while not thumby.buttonB.pressed():
     if thumby.buttonA.justPressed():
         page += 1
-        if page > 3:
+        if page > 4:
             page = 0
         fps.tock() # timing relative to page
     elif thumby.buttonL.justPressed():
@@ -50,6 +77,9 @@ while not thumby.buttonB.pressed():
 
     dt = fps.frame_time()
     fps.tick()
+    phase += speed * 0.5 * dt
+    if phase > 2.0 * math.pi:
+        phase -= 2.0 * math.pi # keep phase accurate in long-running demo
 
     if page == 0:
         thumby.display.fill(0)
@@ -73,9 +103,6 @@ while not thumby.buttonB.pressed():
         for y in range(5, 40, 10):
             shapes.hline(y, 0, 71, shapes.xor)
         
-        phase += speed * 0.5 * dt
-        if phase > 2.0 * math.pi:
-            phase -= 2.0 * math.pi # keep phase accurate in long-running demo
         size1 = 50 * math.fabs(math.sin(phase))
         size1_1 = int(size1)
         size1_2 = int(size1 / 2)
@@ -152,7 +179,7 @@ while not thumby.buttonB.pressed():
                 pheight -= 0.1
 
         thumby.display.fill(0)
-        draw_sky()
+        draw_sky(2)
         l = 0
         for layer in parallax:
             offset = offsets[l]
@@ -179,6 +206,42 @@ while not thumby.buttonB.pressed():
         if fps.tock_time() < 4:
             textmode.print_text(0, 0, 
                 "3=parallax\n\n\n^_ up/down\n[]speed", textmode.block)
+        else:
+            textmode.print_text(3, 4, f"{cur_fps:5.1f}/s", textmode.overlay)
+
+    elif page == 4:
+        if thumby.buttonU.pressed():
+            n_poly += dt # increase/decrease by 1 corner per second
+            poly = morphing_polygon(n_poly, obj=poly)
+        elif thumby.buttonD.pressed():
+            n_poly -= dt
+            if n_poly < 3.0:
+                n_poly = 3.0
+            poly = morphing_polygon(n_poly, obj=poly)
+
+        angle += 6. * (speed + 10.) * dt
+        if angle >= 360.:
+            angle -= 360.
+        sizeA = 25 + 10. * math.sin(phase)
+        sizeB = 15. + 15. * math.cos(phase)
+        dx = 5. * math.sin(phase * 2)
+        
+        mode_tick += dt
+        if mode_tick >= 4.0:
+            mode_tick -= 4.0
+            drawmode += 1
+            if drawmode > shapes.xor:
+                drawmode = shapes.fill
+        
+        thumby.display.fill(0)
+        draw_sky(4)
+        poly.draw(24 - dx, 20, drawmode, sx=sizeA / 20., sy=sizeA / 20., angle=angle)
+        poly.draw(48 + dx, 20, drawmode, sx=sizeB / 20., sy=sizeB / 20., angle=30 - angle)
+
+        cur_fps = fps.fps()
+        if fps.tock_time() < 4:
+            textmode.print_text(0, 0, 
+                "4=polygons\n\n^ more\n_ fewer\n[]speed", textmode.block)
         else:
             textmode.print_text(3, 4, f"{cur_fps:5.1f}/s", textmode.overlay)
 
